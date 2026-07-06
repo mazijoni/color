@@ -1,9 +1,9 @@
 // Config — placeholders are substituted by GitHub Actions at deploy time.
 // For local development, values come from config.local.js instead.
 export const accounts = {
-  yellow: { password: "123" },
-  green: { password: "123" },
-  blue: { password: "123" },
+  yellow: { password: "camillaerkul" },
+  green: { password: "5723" },
+  blue: { password: "banana19!" },
 };
 
 export const cloudinary = {

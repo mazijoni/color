@@ -10,7 +10,14 @@ service cloud.firestore {
       // No real auth in this app (see README), so this can't verify *which*
       // account is deleting — only the client UI restricts delete buttons
       // to a user's own photos.
-      allow update: if false;
+      // Likes work the same way, except "can't like your own photo" *is*
+      // enforced here: the doc's own color can never appear in its own
+      // likes list, which holds regardless of which account calls update.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+                    && request.resource.data.likes is list
+                    && request.resource.data.likes.size() <= 3
+                    && request.resource.data.likes.hasOnly(['yellow', 'green', 'blue'])
+                    && !(resource.data.color in request.resource.data.likes);
       allow delete: if true;
     }
   }

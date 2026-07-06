@@ -9,6 +9,9 @@ import {
   query,
   orderBy,
   onSnapshot,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const USE_LOCAL_CONFIG = "auto";
@@ -148,6 +151,44 @@ function makeDeleteBtn(item) {
   return btn;
 }
 
+// --- Likes ---
+
+async function toggleLike(item) {
+  const account = localStorage.getItem("account");
+  if (!account || item.color === account) return;
+
+  const likes = item.likes || [];
+  const ref = doc(db, "uploads", item.id);
+  try {
+    await updateDoc(ref, {
+      likes: likes.includes(account) ? arrayRemove(account) : arrayUnion(account),
+    });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// No like button on your own photos — can't rate yourself.
+function makeLikeBtn(item) {
+  const account = localStorage.getItem("account");
+  if (item.color === account) return null;
+
+  const likes = item.likes || [];
+  const liked = likes.includes(account);
+
+  const btn = document.createElement("button");
+  btn.className = "like-btn";
+  btn.type = "button";
+  btn.classList.toggle("liked", liked);
+  btn.title = liked ? "Unlike" : "Like";
+  btn.innerHTML = `<span class="like-icon">${liked ? "♥" : "♡"}</span><span class="like-count">${likes.length}</span>`;
+  btn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleLike(item);
+  });
+  return btn;
+}
+
 function makePhotoTile(item) {
   const tile = document.createElement("div");
   tile.className = "photo-tile";
@@ -161,6 +202,9 @@ function makePhotoTile(item) {
 
   const deleteBtn = makeDeleteBtn(item);
   if (deleteBtn) tile.appendChild(deleteBtn);
+
+  const likeBtn = makeLikeBtn(item);
+  if (likeBtn) tile.appendChild(likeBtn);
 
   return tile;
 }
@@ -313,6 +357,11 @@ function makeCommunitySlot(color, items, cyclers) {
     if (oldDeleteBtn) oldDeleteBtn.remove();
     const deleteBtn = makeDeleteBtn(current);
     if (deleteBtn) tile.appendChild(deleteBtn);
+
+    const oldLikeBtn = tile.querySelector(".like-btn");
+    if (oldLikeBtn) oldLikeBtn.remove();
+    const likeBtn = makeLikeBtn(current);
+    if (likeBtn) tile.appendChild(likeBtn);
   }
   showCurrent();
 

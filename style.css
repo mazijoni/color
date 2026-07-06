@@ -319,6 +319,38 @@ a { color: inherit; text-decoration: none; }
   color: #2a0a0a;
 }
 
+.like-btn {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  height: 26px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in oklab, var(--paper) 80%, transparent);
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+
+.like-btn:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.like-btn.liked {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.like-icon { font-size: 13px; }
+.like-count { font-family: var(--mono); }
+
 /* --- Community feed --- */
 
 .filter-row {

@@ -52,6 +52,9 @@ const logoutBtn = document.getElementById("logout-btn");
 const fileInput = document.getElementById("file-input");
 const uploadBtn = document.getElementById("upload-btn");
 const uploadStatus = document.getElementById("upload-status");
+const viewTabs = document.querySelectorAll(".view-tab");
+const galleryViews = document.querySelectorAll(".gallery-view");
+const communityFeed = document.getElementById("community-feed");
 
 let selectedAccount = null;
 
@@ -93,16 +96,41 @@ function enterApp(account) {
   currentAccountLabel.textContent = account;
 }
 
+// --- View tabs ---
+
+viewTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    viewTabs.forEach((t) => t.classList.toggle("selected", t === tab));
+    galleryViews.forEach((view) => {
+      view.hidden = view.dataset.view !== tab.dataset.view;
+    });
+  });
+});
+
 // --- Firebase ---
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const uploadsQuery = query(collection(db, "uploads"), orderBy("createdAt", "desc"));
 
+function formatTime(timestamp) {
+  if (!timestamp) return "just now";
+  const diffMs = Date.now() - timestamp.toDate().getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 onSnapshot(uploadsQuery, (snapshot) => {
   const byColor = { yellow: [], green: [], blue: [] };
+  const all = [];
   snapshot.forEach((doc) => {
     const data = doc.data();
+    all.push(data);
     if (byColor[data.color]) {
       byColor[data.color].push(data);
     }
@@ -117,6 +145,31 @@ onSnapshot(uploadsQuery, (snapshot) => {
       img.loading = "lazy";
       grid.appendChild(img);
     }
+  }
+
+  communityFeed.innerHTML = "";
+  for (const item of all) {
+    const row = document.createElement("div");
+    row.className = "feed-item";
+
+    const img = document.createElement("img");
+    img.src = item.url;
+    img.loading = "lazy";
+
+    const meta = document.createElement("div");
+    meta.className = "feed-meta";
+
+    const tag = document.createElement("span");
+    tag.className = `tag tag-${item.color}`;
+    tag.textContent = item.color;
+
+    const time = document.createElement("span");
+    time.className = "feed-time";
+    time.textContent = formatTime(item.createdAt);
+
+    meta.append(tag, time);
+    row.append(img, meta);
+    communityFeed.appendChild(row);
   }
 });
 

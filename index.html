@@ -4,11 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Color</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main id="login-screen" class="screen">
-    <h1>Color</h1>
+  <main id="login-screen" class="screen login-screen">
+    <p class="meta login-eyebrow">Maze Development</p>
+    <h1 class="serif login-title">Color</h1>
     <p class="subtitle">Pick your account</p>
     <div id="account-picker" class="account-picker">
       <button class="account-btn" data-account="yellow">Yellow</button>
@@ -17,41 +21,60 @@
     </div>
     <form id="login-form" class="login-form" hidden>
       <input type="password" id="password-input" placeholder="Password" autocomplete="current-password" />
-      <button type="submit">Log in</button>
+      <button type="submit" class="btn btn-primary">Log in</button>
     </form>
     <p id="login-error" class="error" hidden></p>
   </main>
 
-  <main id="app-screen" class="screen" hidden>
-    <header class="app-header">
-      <h1>Color</h1>
-      <div class="header-right">
-        <span id="current-account" class="current-account"></span>
-        <button id="logout-btn" class="link-btn">Log out</button>
+  <div id="app-screen" hidden>
+    <header class="masthead">
+      <div class="mast-inner">
+        <div class="mast-logo"><span class="dot"></span>Color</div>
+        <div class="mast-nav">
+          <span id="current-account" class="current-account"></span>
+          <span class="divider"></span>
+          <button id="logout-btn" class="pill">Log out</button>
+        </div>
       </div>
     </header>
 
-    <section class="upload-section">
-      <input type="file" id="file-input" accept="image/*" />
-      <button id="upload-btn">Upload</button>
-      <span id="upload-status" class="upload-status"></span>
-    </section>
+    <main class="frame app-main">
+      <section class="upload-card">
+        <p class="meta">Upload</p>
+        <div class="upload-row">
+          <input type="file" id="file-input" accept="image/*" />
+          <button id="upload-btn" class="btn btn-primary">Upload</button>
+          <span id="upload-status" class="upload-status"></span>
+        </div>
+      </section>
 
-    <section class="gallery">
-      <div class="gallery-column" data-color="yellow">
-        <h2>Yellow</h2>
-        <div class="gallery-grid" id="gallery-yellow"></div>
-      </div>
-      <div class="gallery-column" data-color="green">
-        <h2>Green</h2>
-        <div class="gallery-grid" id="gallery-green"></div>
-      </div>
-      <div class="gallery-column" data-color="blue">
-        <h2>Blue</h2>
-        <div class="gallery-grid" id="gallery-blue"></div>
-      </div>
-    </section>
-  </main>
+      <nav class="view-tabs">
+        <button class="view-tab selected" data-view="color">By Color</button>
+        <button class="view-tab" data-view="community">Community</button>
+      </nav>
+
+      <section class="gallery-view" data-view="color">
+        <div class="gallery">
+          <div class="gallery-column" data-color="yellow">
+            <h2>Yellow</h2>
+            <div class="gallery-grid" id="gallery-yellow"></div>
+          </div>
+          <div class="gallery-column" data-color="green">
+            <h2>Green</h2>
+            <div class="gallery-grid" id="gallery-green"></div>
+          </div>
+          <div class="gallery-column" data-color="blue">
+            <h2>Blue</h2>
+            <div class="gallery-grid" id="gallery-blue"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="gallery-view community-view" data-view="community" hidden>
+        <div class="community-feed" id="community-feed"></div>
+      </section>
+    </main>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

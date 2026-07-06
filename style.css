@@ -1,0 +1,182 @@
+:root {
+  --yellow: #e8b400;
+  --green: #2e8b57;
+  --blue: #2563eb;
+  --bg: #111214;
+  --surface: #1b1c1f;
+  --text: #f2f2f2;
+  --muted: #9a9ba0;
+  --border: #2c2d31;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.screen {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+}
+
+/* --- Login --- */
+
+#login-screen {
+  max-width: 420px;
+  text-align: center;
+  padding-top: 4rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin-bottom: 2rem;
+}
+
+.account-picker {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.account-btn {
+  flex: 1;
+  padding: 0.9rem 0;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  font-weight: 600;
+  cursor: pointer;
+  color: #111;
+}
+
+.account-btn[data-account="yellow"] { background: var(--yellow); }
+.account-btn[data-account="green"] { background: var(--green); color: #fff; }
+.account-btn[data-account="blue"] { background: var(--blue); color: #fff; }
+
+.account-btn.selected {
+  border-color: var(--text);
+}
+
+.login-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.login-form input {
+  flex: 1;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.login-form button,
+.upload-section button,
+.link-btn {
+  padding: 0.7rem 1.1rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--text);
+  color: #111;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-btn {
+  background: transparent;
+  color: var(--muted);
+  padding: 0.4rem 0.6rem;
+  text-decoration: underline;
+}
+
+.error {
+  color: #f87171;
+  margin-top: 1rem;
+}
+
+/* --- App --- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.current-account {
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.upload-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.upload-status {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.gallery-column h2 {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.75rem;
+}
+
+.gallery-column[data-color="yellow"] h2 { color: var(--yellow); }
+.gallery-column[data-color="green"] h2 { color: var(--green); }
+.gallery-column[data-color="blue"] h2 { color: var(--blue); }
+
+.gallery-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gallery-grid img {
+  width: 100%;
+  border-radius: 10px;
+  display: block;
+  background: var(--surface);
+}
+
+@media (max-width: 720px) {
+  .gallery {
+    grid-template-columns: 1fr;
+  }
+}

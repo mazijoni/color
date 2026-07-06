@@ -55,20 +55,22 @@
       </nav>
 
       <section class="gallery-view" data-view="mine">
-        <div class="photo-grid" id="gallery-mine"></div>
+        <div id="gallery-mine"></div>
       </section>
 
       <section class="gallery-view community-view" data-view="community" hidden>
         <div class="filter-row">
-          <span class="meta">Sort by</span>
-          <button class="filter-btn selected" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="yellow">Yellow</button>
-          <button class="filter-btn" data-filter="green">Green</button>
-          <button class="filter-btn" data-filter="blue">Blue</button>
+          <span class="meta">Filter by day</span>
+          <div class="day-filter-list" id="day-filter-list"></div>
         </div>
         <div class="community-feed" id="community-feed"></div>
       </section>
     </main>
+  </div>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <button id="lightbox-close" class="lightbox-close" aria-label="Close" type="button">✕</button>
+    <img id="lightbox-img" src="" alt="" />
   </div>
 
   <script type="module" src="app.js"></script>

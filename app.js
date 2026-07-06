@@ -58,7 +58,10 @@ const viewTabs = document.querySelectorAll(".view-tab");
 const galleryViews = document.querySelectorAll(".gallery-view");
 const galleryMine = document.getElementById("gallery-mine");
 const communityFeed = document.getElementById("community-feed");
-const filterButtons = document.querySelectorAll(".filter-btn");
+const dayFilterList = document.getElementById("day-filter-list");
+const lightbox = document.getElementById("lightbox");
+const lightboxImg = document.getElementById("lightbox-img");
+const lightboxClose = document.getElementById("lightbox-close");
 
 let selectedAccount = null;
 
@@ -80,7 +83,7 @@ loginForm.addEventListener("submit", (event) => {
   const expectedPassword = accounts[selectedAccount]?.password;
 
   if (expectedPassword && passwordInput.value === expectedPassword) {
-    sessionStorage.setItem("account", selectedAccount);
+    localStorage.setItem("account", selectedAccount);
     enterApp(selectedAccount);
   } else {
     loginError.textContent = "Wrong password.";
@@ -89,7 +92,7 @@ loginForm.addEventListener("submit", (event) => {
 });
 
 logoutBtn.addEventListener("click", () => {
-  sessionStorage.removeItem("account");
+  localStorage.removeItem("account");
   appScreen.hidden = true;
   loginScreen.hidden = false;
 });
@@ -111,35 +114,15 @@ viewTabs.forEach((tab) => {
   });
 });
 
-// --- Community filter ---
+// --- Community day filter ---
 
-let communityFilter = "all";
-
-filterButtons.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    communityFilter = btn.dataset.filter;
-    filterButtons.forEach((b) => b.classList.toggle("selected", b === btn));
-    renderCommunity();
-  });
-});
+let communityDayFilter = "all";
 
 // --- Firebase ---
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const uploadsQuery = query(collection(db, "uploads"), orderBy("createdAt", "desc"));
-
-function formatTime(timestamp) {
-  if (!timestamp) return "just now";
-  const diffMs = Date.now() - timestamp.toDate().getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 async function deleteUpload(id) {
   if (!confirm("Delete this photo?")) return;
@@ -152,13 +135,16 @@ async function deleteUpload(id) {
 }
 
 function makeDeleteBtn(item) {
-  if (item.color !== sessionStorage.getItem("account")) return null;
+  if (item.color !== localStorage.getItem("account")) return null;
   const btn = document.createElement("button");
   btn.className = "delete-btn";
   btn.type = "button";
   btn.title = "Delete";
   btn.textContent = "✕";
-  btn.addEventListener("click", () => deleteUpload(item.id));
+  btn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    deleteUpload(item.id);
+  });
   return btn;
 }
 
@@ -171,48 +157,239 @@ function makePhotoTile(item) {
   img.loading = "lazy";
   tile.appendChild(img);
 
+  tile.addEventListener("click", () => openLightbox(item.url));
+
   const deleteBtn = makeDeleteBtn(item);
   if (deleteBtn) tile.appendChild(deleteBtn);
 
   return tile;
 }
 
+// --- Day grouping ---
+
+// "day" is a YYYY-MM-DD category saved on the upload doc itself, so grouping
+// doesn't depend on re-deriving it from createdAt on every render.
+function dateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function itemDayKey(item) {
+  if (item.day) return item.day;
+  return dateKey(item.createdAt ? item.createdAt.toDate() : new Date());
+}
+
+function dayLabelFromKey(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  const target = new Date(y, m - 1, d);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.round((today - target) / 86400000);
+  if (diffDays === 0) return "Today";
+  return `Day ${diffDays}`;
+}
+
+function groupByDay(items) {
+  const groups = [];
+  const indexByKey = new Map();
+  for (const item of items) {
+    const key = itemDayKey(item);
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, groups.length);
+      groups.push({ key, label: dayLabelFromKey(key), items: [] });
+    }
+    groups[indexByKey.get(key)].items.push(item);
+  }
+  return groups;
+}
+
 let latestUploads = [];
 
+// Renders items grouped into day sections (Today, Day 1, Day 2, ...), each a
+// plain photo grid. New uploads land in the right day automatically since
+// groupByDay is recomputed from latestUploads on every render.
+function renderDayGroupedGrid(container, items) {
+  container.innerHTML = "";
+
+  for (const group of groupByDay(items)) {
+    const section = document.createElement("div");
+    section.className = "day-group";
+
+    const header = document.createElement("h3");
+    header.className = "day-header";
+    header.textContent = group.label;
+    section.appendChild(header);
+
+    const grid = document.createElement("div");
+    grid.className = "photo-grid";
+    for (const item of group.items) grid.appendChild(makePhotoTile(item));
+    section.appendChild(grid);
+
+    container.appendChild(section);
+  }
+}
+
 function renderMine() {
-  const account = sessionStorage.getItem("account");
-  galleryMine.innerHTML = "";
-  for (const item of latestUploads) {
-    if (item.color !== account) continue;
-    galleryMine.appendChild(makePhotoTile(item));
-  }
+  const account = localStorage.getItem("account");
+  const items = latestUploads.filter((item) => item.color === account);
+  renderDayGroupedGrid(galleryMine, items);
 }
 
-function renderCommunity() {
-  communityFeed.innerHTML = "";
-  for (const item of latestUploads) {
-    if (communityFilter !== "all" && item.color !== communityFilter) continue;
+function renderDayFilterButtons(groups) {
+  dayFilterList.innerHTML = "";
 
-    const row = document.createElement("div");
-    row.className = "feed-item";
-    row.appendChild(makePhotoTile(item));
+  function addButton(label, key) {
+    const btn = document.createElement("button");
+    btn.className = "filter-btn";
+    btn.type = "button";
+    btn.textContent = label;
+    btn.classList.toggle("selected", communityDayFilter === key);
+    btn.addEventListener("click", () => {
+      communityDayFilter = key;
+      renderCommunity();
+    });
+    dayFilterList.appendChild(btn);
+  }
 
-    const meta = document.createElement("div");
-    meta.className = "feed-meta";
+  addButton("All", "all");
+  for (const group of groups) addButton(group.label, group.key);
+}
 
+// One showcase slot per color for the day. If a color posted more than once
+// that day, the slot auto-cycles through all of that color's photos for it.
+function makeCommunitySlot(color, items, cyclers) {
+  const slot = document.createElement("div");
+  slot.className = "community-slot";
+
+  if (items.length === 0) {
+    slot.classList.add("slot-empty");
     const tag = document.createElement("span");
-    tag.className = `tag tag-${item.color}`;
-    tag.textContent = item.color;
+    tag.className = `tag tag-${color}`;
+    tag.textContent = color;
+    slot.appendChild(tag);
+    return slot;
+  }
 
-    const time = document.createElement("span");
-    time.className = "feed-time";
-    time.textContent = formatTime(item.createdAt);
+  let index = 0;
 
-    meta.append(tag, time);
-    row.appendChild(meta);
-    communityFeed.appendChild(row);
+  const tile = document.createElement("div");
+  tile.className = "photo-tile";
+
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  img.src = items[0].url;
+  tile.appendChild(img);
+  tile.addEventListener("click", () => openLightbox(img.src));
+
+  const meta = document.createElement("div");
+  meta.className = "feed-meta";
+
+  const tag = document.createElement("span");
+  tag.className = `tag tag-${color}`;
+  tag.textContent = color;
+  meta.appendChild(tag);
+
+  if (items.length > 1) {
+    const count = document.createElement("span");
+    count.className = "feed-time";
+    count.textContent = `1 / ${items.length}`;
+    meta.appendChild(count);
+  }
+
+  slot.append(tile, meta);
+
+  function showCurrent() {
+    const current = items[index];
+    img.src = current.url;
+
+    const countEl = meta.querySelector(".feed-time");
+    if (countEl) countEl.textContent = `${index + 1} / ${items.length}`;
+
+    const oldDeleteBtn = tile.querySelector(".delete-btn");
+    if (oldDeleteBtn) oldDeleteBtn.remove();
+    const deleteBtn = makeDeleteBtn(current);
+    if (deleteBtn) tile.appendChild(deleteBtn);
+  }
+  showCurrent();
+
+  if (items.length > 1) {
+    cyclers.push(() => {
+      index = (index + 1) % items.length;
+      showCurrent();
+    });
+  }
+
+  return slot;
+}
+
+let communityCycleInterval = null;
+
+// "All" is a plain list of every photo, day by day (same format as Your
+// Images). Picking a specific day switches to the per-color showcase.
+function renderCommunity() {
+  if (communityCycleInterval) clearInterval(communityCycleInterval);
+  communityCycleInterval = null;
+
+  const groups = groupByDay(latestUploads);
+  renderDayFilterButtons(groups);
+
+  if (communityDayFilter === "all") {
+    renderDayGroupedGrid(communityFeed, latestUploads);
+    return;
+  }
+
+  communityFeed.innerHTML = "";
+  const group = groups.find((g) => g.key === communityDayFilter);
+
+  const section = document.createElement("div");
+  section.className = "day-group";
+
+  const header = document.createElement("h3");
+  header.className = "day-header";
+  header.textContent = group ? group.label : dayLabelFromKey(communityDayFilter);
+  section.appendChild(header);
+
+  const row = document.createElement("div");
+  row.className = "community-row";
+  const cyclers = [];
+  for (const color of COLORS) {
+    const colorItems = group ? group.items.filter((item) => item.color === color) : [];
+    row.appendChild(makeCommunitySlot(color, colorItems, cyclers));
+  }
+  section.appendChild(row);
+
+  communityFeed.appendChild(section);
+
+  if (cyclers.length > 0) {
+    communityCycleInterval = setInterval(() => {
+      cyclers.forEach((tick) => tick());
+    }, 3000);
   }
 }
+
+// --- Lightbox ---
+
+function openLightbox(url) {
+  lightboxImg.src = url;
+  lightbox.hidden = false;
+}
+
+function closeLightbox() {
+  lightbox.hidden = true;
+  lightboxImg.src = "";
+}
+
+lightboxClose.addEventListener("click", closeLightbox);
+lightbox.addEventListener("click", (event) => {
+  if (event.target === lightbox) closeLightbox();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !lightbox.hidden) closeLightbox();
+});
 
 onSnapshot(uploadsQuery, (snapshot) => {
   latestUploads = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
@@ -249,8 +426,9 @@ uploadBtn.addEventListener("click", async () => {
     const result = await response.json();
 
     await addDoc(collection(db, "uploads"), {
-      color: sessionStorage.getItem("account"),
+      color: localStorage.getItem("account"),
       url: result.secure_url,
+      day: dateKey(new Date()),
       createdAt: serverTimestamp(),
     });
 
@@ -266,7 +444,7 @@ uploadBtn.addEventListener("click", async () => {
 
 // --- Restore session ---
 
-const savedAccount = sessionStorage.getItem("account");
+const savedAccount = localStorage.getItem("account");
 if (savedAccount && COLORS.includes(savedAccount)) {
   enterApp(savedAccount);
 }

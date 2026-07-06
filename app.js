@@ -3,6 +3,8 @@ import {
   getFirestore,
   collection,
   addDoc,
+  deleteDoc,
+  doc,
   serverTimestamp,
   query,
   orderBy,
@@ -54,7 +56,9 @@ const uploadBtn = document.getElementById("upload-btn");
 const uploadStatus = document.getElementById("upload-status");
 const viewTabs = document.querySelectorAll(".view-tab");
 const galleryViews = document.querySelectorAll(".gallery-view");
+const galleryMine = document.getElementById("gallery-mine");
 const communityFeed = document.getElementById("community-feed");
+const filterButtons = document.querySelectorAll(".filter-btn");
 
 let selectedAccount = null;
 
@@ -107,6 +111,18 @@ viewTabs.forEach((tab) => {
   });
 });
 
+// --- Community filter ---
+
+let communityFilter = "all";
+
+filterButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    communityFilter = btn.dataset.filter;
+    filterButtons.forEach((b) => b.classList.toggle("selected", b === btn));
+    renderCommunity();
+  });
+});
+
 // --- Firebase ---
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -125,36 +141,61 @@ function formatTime(timestamp) {
   return `${days}d ago`;
 }
 
-onSnapshot(uploadsQuery, (snapshot) => {
-  const byColor = { yellow: [], green: [], blue: [] };
-  const all = [];
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    all.push(data);
-    if (byColor[data.color]) {
-      byColor[data.color].push(data);
-    }
-  });
-
-  for (const color of COLORS) {
-    const grid = document.getElementById(`gallery-${color}`);
-    grid.innerHTML = "";
-    for (const item of byColor[color]) {
-      const img = document.createElement("img");
-      img.src = item.url;
-      img.loading = "lazy";
-      grid.appendChild(img);
-    }
+async function deleteUpload(id) {
+  if (!confirm("Delete this photo?")) return;
+  try {
+    await deleteDoc(doc(db, "uploads", id));
+  } catch (err) {
+    console.error(err);
+    alert("Delete failed. See console.");
   }
+}
 
+function makeDeleteBtn(item) {
+  if (item.color !== sessionStorage.getItem("account")) return null;
+  const btn = document.createElement("button");
+  btn.className = "delete-btn";
+  btn.type = "button";
+  btn.title = "Delete";
+  btn.textContent = "✕";
+  btn.addEventListener("click", () => deleteUpload(item.id));
+  return btn;
+}
+
+function makePhotoTile(item) {
+  const tile = document.createElement("div");
+  tile.className = "photo-tile";
+
+  const img = document.createElement("img");
+  img.src = item.url;
+  img.loading = "lazy";
+  tile.appendChild(img);
+
+  const deleteBtn = makeDeleteBtn(item);
+  if (deleteBtn) tile.appendChild(deleteBtn);
+
+  return tile;
+}
+
+let latestUploads = [];
+
+function renderMine() {
+  const account = sessionStorage.getItem("account");
+  galleryMine.innerHTML = "";
+  for (const item of latestUploads) {
+    if (item.color !== account) continue;
+    galleryMine.appendChild(makePhotoTile(item));
+  }
+}
+
+function renderCommunity() {
   communityFeed.innerHTML = "";
-  for (const item of all) {
+  for (const item of latestUploads) {
+    if (communityFilter !== "all" && item.color !== communityFilter) continue;
+
     const row = document.createElement("div");
     row.className = "feed-item";
-
-    const img = document.createElement("img");
-    img.src = item.url;
-    img.loading = "lazy";
+    row.appendChild(makePhotoTile(item));
 
     const meta = document.createElement("div");
     meta.className = "feed-meta";
@@ -168,9 +209,15 @@ onSnapshot(uploadsQuery, (snapshot) => {
     time.textContent = formatTime(item.createdAt);
 
     meta.append(tag, time);
-    row.append(img, meta);
+    row.appendChild(meta);
     communityFeed.appendChild(row);
   }
+}
+
+onSnapshot(uploadsQuery, (snapshot) => {
+  latestUploads = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  renderMine();
+  renderCommunity();
 });
 
 // --- Cloudinary upload ---

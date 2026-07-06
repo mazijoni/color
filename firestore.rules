@@ -6,7 +6,11 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasOnly(['color', 'url', 'createdAt'])
                     && request.resource.data.color in ['yellow', 'green', 'blue']
                     && request.resource.data.url is string;
-      allow update, delete: if false;
+      // No real auth in this app (see README), so this can't verify *which*
+      // account is deleting — only the client UI restricts delete buttons
+      // to a user's own photos.
+      allow update: if false;
+      allow delete: if true;
     }
   }
 }

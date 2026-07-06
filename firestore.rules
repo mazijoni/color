@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /uploads/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['color', 'url', 'createdAt'])
+                    && request.resource.data.color in ['yellow', 'green', 'blue']
+                    && request.resource.data.url is string;
+      allow update, delete: if false;
+    }
+  }
+}

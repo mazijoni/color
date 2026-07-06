@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="login-screen" class="screen">
+    <h1>Color</h1>
+    <p class="subtitle">Pick your account</p>
+    <div id="account-picker" class="account-picker">
+      <button class="account-btn" data-account="yellow">Yellow</button>
+      <button class="account-btn" data-account="green">Green</button>
+      <button class="account-btn" data-account="blue">Blue</button>
+    </div>
+    <form id="login-form" class="login-form" hidden>
+      <input type="password" id="password-input" placeholder="Password" autocomplete="current-password" />
+      <button type="submit">Log in</button>
+    </form>
+    <p id="login-error" class="error" hidden></p>
+  </main>
+
+  <main id="app-screen" class="screen" hidden>
+    <header class="app-header">
+      <h1>Color</h1>
+      <div class="header-right">
+        <span id="current-account" class="current-account"></span>
+        <button id="logout-btn" class="link-btn">Log out</button>
+      </div>
+    </header>
+
+    <section class="upload-section">
+      <input type="file" id="file-input" accept="image/*" />
+      <button id="upload-btn">Upload</button>
+      <span id="upload-status" class="upload-status"></span>
+    </section>
+
+    <section class="gallery">
+      <div class="gallery-column" data-color="yellow">
+        <h2>Yellow</h2>
+        <div class="gallery-grid" id="gallery-yellow"></div>
+      </div>
+      <div class="gallery-column" data-color="green">
+        <h2>Green</h2>
+        <div class="gallery-grid" id="gallery-green"></div>
+      </div>
+      <div class="gallery-column" data-color="blue">
+        <h2>Blue</h2>
+        <div class="gallery-grid" id="gallery-blue"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

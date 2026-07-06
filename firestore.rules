@@ -3,9 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /uploads/{docId} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['color', 'url', 'createdAt'])
+      allow create: if request.resource.data.keys().hasOnly(['color', 'url', 'day', 'createdAt'])
                     && request.resource.data.color in ['yellow', 'green', 'blue']
-                    && request.resource.data.url is string;
+                    && request.resource.data.url is string
+                    && request.resource.data.day is string;
       // No real auth in this app (see README), so this can't verify *which*
       // account is deleting — only the client UI restricts delete buttons
       // to a user's own photos.

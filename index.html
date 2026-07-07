@@ -33,6 +33,7 @@
         <div class="mast-logo"><span class="dot"></span>Color</div>
         <div class="mast-nav">
           <span id="current-account" class="current-account"></span>
+          <span id="likes-received" class="likes-received" title="Likes received on your photos"></span>
           <span class="divider"></span>
           <button id="logout-btn" class="pill">Log out</button>
         </div>
@@ -43,10 +44,11 @@
       <section class="upload-card">
         <p class="meta">Upload</p>
         <div class="upload-row">
-          <input type="file" id="file-input" accept="image/*" />
+          <input type="file" id="file-input" accept="image/*" multiple />
           <button id="upload-btn" class="btn btn-primary">Upload</button>
           <span id="upload-status" class="upload-status"></span>
         </div>
+        <div id="upload-preview" class="upload-preview"></div>
       </section>
 
       <nav class="view-tabs">

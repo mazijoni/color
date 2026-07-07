@@ -5,6 +5,8 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  getDoc,
+  setDoc,
   serverTimestamp,
   query,
   orderBy,
@@ -53,10 +55,12 @@ const loginForm = document.getElementById("login-form");
 const passwordInput = document.getElementById("password-input");
 const loginError = document.getElementById("login-error");
 const currentAccountLabel = document.getElementById("current-account");
+const likesReceivedLabel = document.getElementById("likes-received");
 const logoutBtn = document.getElementById("logout-btn");
 const fileInput = document.getElementById("file-input");
 const uploadBtn = document.getElementById("upload-btn");
 const uploadStatus = document.getElementById("upload-status");
+const uploadPreview = document.getElementById("upload-preview");
 const viewTabs = document.querySelectorAll(".view-tab");
 const galleryViews = document.querySelectorAll(".gallery-view");
 const galleryMine = document.getElementById("gallery-mine");
@@ -96,6 +100,7 @@ loginForm.addEventListener("submit", (event) => {
 
 logoutBtn.addEventListener("click", () => {
   localStorage.removeItem("account");
+  likeLimitCache = null;
   appScreen.hidden = true;
   loginScreen.hidden = false;
 });
@@ -104,6 +109,11 @@ function enterApp(account) {
   loginScreen.hidden = true;
   appScreen.hidden = false;
   currentAccountLabel.textContent = account;
+  updateLikesReceivedLabel();
+  loadLikeLimit(account).then(() => {
+    renderMine();
+    renderCommunity();
+  });
 }
 
 // --- View tabs ---
@@ -153,34 +163,100 @@ function makeDeleteBtn(item) {
 
 // --- Likes ---
 
+// Each account gets one "like" to give out per calendar day, tracked in
+// likeLimits/{account} as { day, photoId }. Unliking the same photo you
+// spent today's like on frees it back up; liking a different photo while
+// today's slot is already spent is blocked.
+let likeLimitCache = null;
+
+async function loadLikeLimit(account) {
+  try {
+    const snap = await getDoc(doc(db, "likeLimits", account));
+    const data = snap.exists() ? snap.data() : null;
+    likeLimitCache = data && data.day === dateKey(new Date()) ? data : null;
+  } catch (err) {
+    console.error(err);
+    likeLimitCache = null;
+  }
+}
+
+function todaysLikeUsedElsewhere(itemId) {
+  const today = dateKey(new Date());
+  return !!likeLimitCache && likeLimitCache.day === today && likeLimitCache.photoId !== itemId;
+}
+
+function likesReceivedCount(account) {
+  return latestUploads
+    .filter((item) => item.color === account)
+    .reduce((sum, item) => sum + (item.likes ? item.likes.length : 0), 0);
+}
+
+function updateLikesReceivedLabel() {
+  const account = localStorage.getItem("account");
+  if (!account || !likesReceivedLabel) return;
+  likesReceivedLabel.textContent = `♥ ${likesReceivedCount(account)}`;
+}
+
 async function toggleLike(item) {
   const account = localStorage.getItem("account");
   if (!account || item.color === account) return;
 
   const likes = item.likes || [];
-  const ref = doc(db, "uploads", item.id);
+  const liked = likes.includes(account);
+  const today = dateKey(new Date());
+  const limitRef = doc(db, "likeLimits", account);
+
+  if (!liked && todaysLikeUsedElsewhere(item.id)) {
+    alert("You've already used today's like. Come back tomorrow!");
+    return;
+  }
+
   try {
-    await updateDoc(ref, {
-      likes: likes.includes(account) ? arrayRemove(account) : arrayUnion(account),
+    await updateDoc(doc(db, "uploads", item.id), {
+      likes: liked ? arrayRemove(account) : arrayUnion(account),
     });
+
+    if (liked) {
+      if (likeLimitCache && likeLimitCache.day === today && likeLimitCache.photoId === item.id) {
+        await deleteDoc(limitRef);
+        likeLimitCache = null;
+      }
+    } else {
+      await setDoc(limitRef, { day: today, photoId: item.id });
+      likeLimitCache = { day: today, photoId: item.id };
+    }
+    renderMine();
+    renderCommunity();
   } catch (err) {
     console.error(err);
   }
 }
 
-// No like button on your own photos — can't rate yourself.
+// Own photos can't be liked, but still show a read-only heart count so you
+// can see how many likes each of your images has gotten.
+function makeLikeBadge(item) {
+  const likes = item.likes || [];
+  const badge = document.createElement("div");
+  badge.className = "like-btn like-badge";
+  badge.title = "Likes received";
+  badge.innerHTML = `<span class="like-icon">♥</span><span class="like-count">${likes.length}</span>`;
+  return badge;
+}
+
 function makeLikeBtn(item) {
   const account = localStorage.getItem("account");
-  if (item.color === account) return null;
+  if (item.color === account) return makeLikeBadge(item);
 
   const likes = item.likes || [];
   const liked = likes.includes(account);
+  const disabled = !liked && todaysLikeUsedElsewhere(item.id);
 
   const btn = document.createElement("button");
   btn.className = "like-btn";
   btn.type = "button";
   btn.classList.toggle("liked", liked);
-  btn.title = liked ? "Unlike" : "Like";
+  btn.disabled = disabled;
+  btn.title = liked ? "Unlike" : disabled ? "You've already liked a photo today" : "Like";
   btn.innerHTML = `<span class="like-icon">${liked ? "♥" : "♡"}</span><span class="like-count">${likes.length}</span>`;
   btn.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -398,7 +474,7 @@ function renderCommunity() {
 
   const header = document.createElement("h3");
   header.className = "day-header";
-  header.textContent = group ? group.label : dayLabelFromKey(communityDayFilter);
+  header.textContent = group ? group.label : "";
   section.appendChild(header);
 
   const row = document.createElement("div");
@@ -443,51 +519,112 @@ onSnapshot(uploadsQuery, (snapshot) => {
   latestUploads = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
   renderMine();
   renderCommunity();
+  updateLikesReceivedLabel();
 });
 
 // --- Cloudinary upload ---
 
+// Selecting files only stages them for preview - nothing is uploaded until
+// the Upload button is pressed, so people can drop a mistaken pick first.
+let pendingFiles = [];
+const previewUrls = new Map(); // File -> object URL, so thumbnails can be revoked
+
+function clearPendingFiles() {
+  for (const url of previewUrls.values()) URL.revokeObjectURL(url);
+  previewUrls.clear();
+  pendingFiles = [];
+}
+
+function renderUploadPreview() {
+  uploadPreview.innerHTML = "";
+  for (const file of pendingFiles) {
+    if (!previewUrls.has(file)) previewUrls.set(file, URL.createObjectURL(file));
+
+    const thumb = document.createElement("div");
+    thumb.className = "preview-thumb";
+
+    const img = document.createElement("img");
+    img.src = previewUrls.get(file);
+    thumb.appendChild(img);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "preview-remove-btn";
+    removeBtn.type = "button";
+    removeBtn.title = "Remove";
+    removeBtn.textContent = "✕";
+    removeBtn.addEventListener("click", () => {
+      URL.revokeObjectURL(previewUrls.get(file));
+      previewUrls.delete(file);
+      pendingFiles = pendingFiles.filter((f) => f !== file);
+      renderUploadPreview();
+    });
+    thumb.appendChild(removeBtn);
+
+    uploadPreview.appendChild(thumb);
+  }
+}
+
+fileInput.addEventListener("change", () => {
+  clearPendingFiles();
+  pendingFiles = Array.from(fileInput.files || []);
+  renderUploadPreview();
+});
+
+async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", cloudinary.uploadPreset);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudinary.cloudName}/image/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Cloudinary upload failed (${response.status})`);
+  }
+
+  const result = await response.json();
+
+  await addDoc(collection(db, "uploads"), {
+    color: localStorage.getItem("account"),
+    url: result.secure_url,
+    day: dateKey(new Date()),
+    createdAt: serverTimestamp(),
+  });
+}
+
 uploadBtn.addEventListener("click", async () => {
-  const file = fileInput.files[0];
-  if (!file) {
-    uploadStatus.textContent = "Choose an image first.";
+  const files = pendingFiles;
+  if (files.length === 0) {
+    uploadStatus.textContent = "Choose image(s) first.";
     return;
   }
 
   uploadBtn.disabled = true;
-  uploadStatus.textContent = "Uploading...";
+  fileInput.disabled = true;
 
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", cloudinary.uploadPreset);
-
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudinary.cloudName}/image/upload`,
-      { method: "POST", body: formData }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Cloudinary upload failed (${response.status})`);
+  let failed = 0;
+  for (let i = 0; i < files.length; i++) {
+    uploadStatus.textContent = `Uploading ${i + 1}/${files.length}...`;
+    try {
+      await uploadFile(files[i]);
+    } catch (err) {
+      console.error(err);
+      failed++;
     }
-
-    const result = await response.json();
-
-    await addDoc(collection(db, "uploads"), {
-      color: localStorage.getItem("account"),
-      url: result.secure_url,
-      day: dateKey(new Date()),
-      createdAt: serverTimestamp(),
-    });
-
-    uploadStatus.textContent = "Uploaded!";
-    fileInput.value = "";
-  } catch (err) {
-    console.error(err);
-    uploadStatus.textContent = "Upload failed. See console.";
-  } finally {
-    uploadBtn.disabled = false;
   }
+
+  uploadStatus.textContent =
+    failed === 0
+      ? `Uploaded ${files.length} image${files.length === 1 ? "" : "s"}!`
+      : `Uploaded ${files.length - failed}/${files.length} (${failed} failed - see console).`;
+
+  clearPendingFiles();
+  renderUploadPreview();
+  fileInput.value = "";
+  uploadBtn.disabled = false;
+  fileInput.disabled = false;
 });
 
 // --- Restore session ---

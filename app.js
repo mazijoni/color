@@ -225,18 +225,9 @@ function itemDayKey(item) {
   return dateKey(item.createdAt ? item.createdAt.toDate() : new Date());
 }
 
-function dayLabelFromKey(key) {
-  const [y, m, d] = key.split("-").map(Number);
-  const target = new Date(y, m - 1, d);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const diffDays = Math.round((today - target) / 86400000);
-  if (diffDays === 0) return "Today";
-  return `Day ${diffDays}`;
-}
-
+// Day numbers count up from the earliest day present in `items` (Day 1 is
+// the first calendar day something was uploaded), not "days ago" - so the
+// label doesn't shift as time passes.
 function groupByDay(items) {
   const groups = [];
   const indexByKey = new Map();
@@ -244,16 +235,24 @@ function groupByDay(items) {
     const key = itemDayKey(item);
     if (!indexByKey.has(key)) {
       indexByKey.set(key, groups.length);
-      groups.push({ key, label: dayLabelFromKey(key), items: [] });
+      groups.push({ key, items: [] });
     }
     groups[indexByKey.get(key)].items.push(item);
   }
+
+  const dayNumberByKey = new Map(
+    [...indexByKey.keys()].sort().map((key, i) => [key, i + 1])
+  );
+  for (const group of groups) {
+    group.label = `Day ${dayNumberByKey.get(group.key)}`;
+  }
+  groups.sort((a, b) => dayNumberByKey.get(a.key) - dayNumberByKey.get(b.key));
   return groups;
 }
 
 let latestUploads = [];
 
-// Renders items grouped into day sections (Today, Day 1, Day 2, ...), each a
+// Renders items grouped into day sections (Day 1, Day 2, ...), each a
 // plain photo grid. New uploads land in the right day automatically since
 // groupByDay is recomputed from latestUploads on every render.
 function renderDayGroupedGrid(container, items) {

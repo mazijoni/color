@@ -14,6 +14,7 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
+  deleteField,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const USE_LOCAL_CONFIG = "auto";
@@ -100,7 +101,7 @@ loginForm.addEventListener("submit", (event) => {
 
 logoutBtn.addEventListener("click", () => {
   localStorage.removeItem("account");
-  likeLimitCache = null;
+  likeLimitCache = {};
   appScreen.hidden = true;
   loginScreen.hidden = false;
 });
@@ -163,26 +164,32 @@ function makeDeleteBtn(item) {
 
 // --- Likes ---
 
-// Each account gets one "like" to give out per calendar day, tracked in
-// likeLimits/{account} as { day, photoId }. Unliking the same photo you
-// spent today's like on frees it back up; liking a different photo while
-// today's slot is already spent is blocked.
-let likeLimitCache = null;
+// Likes are otherwise unlimited, but each account may spend only one like
+// per (category, day) bucket - i.e. one photo among the yellow photos of
+// Day 3, one among the green photos of Day 3, etc. Spent slots are tracked
+// in likeLimits/{account} as { slots: { "<color>::<day>": photoId } }.
+// Unliking the photo that filled a slot frees that slot back up; liking a
+// different photo in an already-spent slot is blocked.
+let likeLimitCache = {};
+
+function likeSlotKey(item) {
+  return `${item.color}::${itemDayKey(item)}`;
+}
 
 async function loadLikeLimit(account) {
   try {
     const snap = await getDoc(doc(db, "likeLimits", account));
     const data = snap.exists() ? snap.data() : null;
-    likeLimitCache = data && data.day === dateKey(new Date()) ? data : null;
+    likeLimitCache = (data && data.slots) || {};
   } catch (err) {
     console.error(err);
-    likeLimitCache = null;
+    likeLimitCache = {};
   }
 }
 
-function todaysLikeUsedElsewhere(itemId) {
-  const today = dateKey(new Date());
-  return !!likeLimitCache && likeLimitCache.day === today && likeLimitCache.photoId !== itemId;
+function slotUsedElsewhere(item) {
+  const used = likeLimitCache[likeSlotKey(item)];
+  return !!used && used !== item.id;
 }
 
 function likesReceivedCount(account) {
@@ -203,11 +210,11 @@ async function toggleLike(item) {
 
   const likes = item.likes || [];
   const liked = likes.includes(account);
-  const today = dateKey(new Date());
+  const key = likeSlotKey(item);
   const limitRef = doc(db, "likeLimits", account);
 
-  if (!liked && todaysLikeUsedElsewhere(item.id)) {
-    alert("You've already used today's like. Come back tomorrow!");
+  if (!liked && slotUsedElsewhere(item)) {
+    alert(`You've already liked a ${item.color} photo for this day.`);
     return;
   }
 
@@ -217,13 +224,13 @@ async function toggleLike(item) {
     });
 
     if (liked) {
-      if (likeLimitCache && likeLimitCache.day === today && likeLimitCache.photoId === item.id) {
-        await deleteDoc(limitRef);
-        likeLimitCache = null;
+      if (likeLimitCache[key] === item.id) {
+        await updateDoc(limitRef, { [`slots.${key}`]: deleteField() });
+        delete likeLimitCache[key];
       }
     } else {
-      await setDoc(limitRef, { day: today, photoId: item.id });
-      likeLimitCache = { day: today, photoId: item.id };
+      await setDoc(limitRef, { slots: { [key]: item.id } }, { merge: true });
+      likeLimitCache[key] = item.id;
     }
     renderMine();
     renderCommunity();
@@ -249,14 +256,14 @@ function makeLikeBtn(item) {
 
   const likes = item.likes || [];
   const liked = likes.includes(account);
-  const disabled = !liked && todaysLikeUsedElsewhere(item.id);
+  const disabled = !liked && slotUsedElsewhere(item);
 
   const btn = document.createElement("button");
   btn.className = "like-btn";
   btn.type = "button";
   btn.classList.toggle("liked", liked);
   btn.disabled = disabled;
-  btn.title = liked ? "Unlike" : disabled ? "You've already liked a photo today" : "Like";
+  btn.title = liked ? "Unlike" : disabled ? `You've already liked a ${item.color} photo for this day` : "Like";
   btn.innerHTML = `<span class="like-icon">${liked ? "♥" : "♡"}</span><span class="like-count">${likes.length}</span>`;
   btn.addEventListener("click", (event) => {
     event.stopPropagation();

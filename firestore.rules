@@ -21,16 +21,15 @@ service cloud.firestore {
       allow delete: if true;
     }
 
-    // Tracks the one like each account may give out per calendar day, as
-    // { day: "YYYY-MM-DD", photoId }. Same trust model as uploads above:
-    // no real auth, so this only validates shape, not which account is
-    // writing its own doc.
+    // Tracks the one like each account may spend per (category, day)
+    // bucket, as { slots: { "<color>::<day>": photoId } }. Same trust
+    // model as uploads above: no real auth, so this only validates shape,
+    // not which account is writing its own doc.
     match /likeLimits/{account} {
       allow read: if true;
       allow create, update: if account in ['yellow', 'green', 'blue']
-                            && request.resource.data.keys().hasOnly(['day', 'photoId'])
-                            && request.resource.data.day is string
-                            && request.resource.data.photoId is string;
+                            && request.resource.data.keys().hasOnly(['slots'])
+                            && request.resource.data.slots is map;
       allow delete: if true;
     }
   }
